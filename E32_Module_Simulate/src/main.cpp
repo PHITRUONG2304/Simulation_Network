@@ -2,8 +2,11 @@
 #include "pinsDefinition.h"
 #include "configurations.h"
 #include "E32_Module.h"
+#include "buffer.h"
 #include <SoftwareSerial.h>
 SoftwareSerial cerr(10, 11); // RXD = 10 and TXD = 11
+Buffer rx_Buffer;
+Buffer tx_Buffer;
 
 enum STATUS_E32
 {
@@ -31,7 +34,7 @@ void setup()
   pinDirInit();
   outputInit();
   Serial.begin(CONF_BAUD);
-  cerr.begin(COMM_BAUD);
+  cerr.begin(ATMEGA_TO_LAP_BAUD);
   attachInterrupt(digitalPinToInterrupt(M0), changeStateModule, CHANGE);
   attachInterrupt(digitalPinToInterrupt(M1), changeStateModule, CHANGE);
   delay(5);
@@ -52,18 +55,22 @@ void handeWithFSM()
   case NORMAL:
     if (Serial.available())
     {
-      delayMicroseconds(TICK_MS_115200 * 2); // delay 2 ticks
+      // delayMicroseconds(TICK_MS_115200 * 2); // delay 2 ticks
       digitalWrite(AUX, LOW);
-      while (Serial.available())
-        cerr.write(Serial.read());
+      unsigned long start = millis();
+      rx_Buffer.recvFromSerial();
+      rx_Buffer.writeToSWSerial(cerr);
+      // Delay about 3ms - 4ms
+      delay(3.5 - (millis() - start));
       digitalWrite(AUX, HIGH);
     }
     if(cerr.available())
     {
       digitalWrite(AUX, LOW);
-      delay(5);
-      while(cerr.available())
-        Serial.write(cerr.read());
+      unsigned long start = millis();
+      tx_Buffer.recvFromSWSerial(cerr);
+      delay(5 - (millis() - start));
+      tx_Buffer.writeToSerial();
       digitalWrite(AUX, HIGH);
     }
     break;
@@ -120,6 +127,6 @@ void changeStateModule()
     delay(2);
     return;
   }
-  restartSerialAtBaudrate(COMM_BAUD);
+  restartSerialAtBaudrate(STM_TO_ATMEGA_BAUD);
   delay(1);
 }
