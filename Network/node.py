@@ -15,7 +15,7 @@ class Node:
         self.sharedBuffer = sharedBuff
         self.address = address
         self.channel = channel
-        self.mSerial = Serial(serialID, baudrate=conf.COMM_BAUDRATE, timeout=0)
+        self.mSerial = Serial(serialID, baudrate=conf.COMM_BAUDRATE, bytesize=8, parity="N", stopbits=1)
         
         self.receiver = threading.Thread(target=self.run)
         self.transmitter = threading.Thread(target=self.readRxSerial)
@@ -51,14 +51,11 @@ class Node:
         while self.mSerial.is_open:
             if self.mSerial.in_waiting:
                 data = self.mSerial.read_all()
-                # DEBUG TODO
-                # print(data.hex())
                 # Wait until the buffer is accessible
                 while not self.sharedBuffer.canAccess():
                     pass
                 # Write data array into buffer
                 self.sharedBuffer.writeBuffer((self.address, data))
-                pass
             if globalVar.eventBreak.is_set():
                 break
             time.sleep(0.001)
