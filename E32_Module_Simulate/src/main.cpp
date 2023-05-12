@@ -4,9 +4,13 @@
 #include "E32_Module.h"
 #include "buffer.h"
 #include <SoftwareSerial.h>
+
+#define MAX_READ_SIZE       58
+#define BYTE_TIME_115200    69.44     //us 
+#define BYTE_TIME_9600      833.33    //us
+#define MAX_WAIT_TIMES      3
+
 SoftwareSerial cerr(10, 11); // RXD = 10 and TXD = 11
-Buffer rx_Buffer;
-Buffer tx_Buffer;
 
 enum STATUS_E32
 {
@@ -16,11 +20,17 @@ enum STATUS_E32
   SLEEP
 };
 
-#define TICK_MS_9600 105
-#define TICK_MS_115200 9
-
+Buffer lower_Buffer = Buffer(512);
+Buffer upper_Buffer = Buffer(512);
 volatile uint32_t currentBaudrate = CONF_BAUD;
 volatile STATUS_E32 currentState;
+unsigned long low_buff_timestamp = 0;
+uint8_t low_buff_wait_times = 0;
+size_t low_buf_old_buff_size = 0;
+
+unsigned long up_buff_timestamp = 0;
+uint8_t up_buff_wait_times = 0;
+size_t up_buf_old_buff_size = 0;
 
 E32_Module e32_module;
 
@@ -33,7 +43,7 @@ void setup()
   // put your setup code here, to run once:
   pinDirInit();
   outputInit();
-  Serial.begin(CONF_BAUD);
+  Serial.begin(STM_TO_ATMEGA_BAUD);
   cerr.begin(ATMEGA_TO_LAP_BAUD);
   attachInterrupt(digitalPinToInterrupt(M0), changeStateModule, CHANGE);
   attachInterrupt(digitalPinToInterrupt(M1), changeStateModule, CHANGE);
@@ -54,24 +64,77 @@ void handeWithFSM()
   {
   case NORMAL:
     if (Serial.available())
+      lower_Buffer.enqueue(Serial.read());
+    if (cerr.available())
+      upper_Buffer.enqueue(cerr.read());
+
+    if(lower_Buffer.available() == MAX_READ_SIZE)
     {
-      // delayMicroseconds(TICK_MS_115200 * 2); // delay 2 ticks
       digitalWrite(AUX, LOW);
-      unsigned long start = millis();
-      rx_Buffer.recvFromSerial();
-      rx_Buffer.writeToSWSerial(cerr);
-      // Delay about 3ms - 4ms
-      delay(3.5 - (millis() - start));
+      for(uint8_t i = 0; i < MAX_READ_SIZE; i++)
+      {
+        uint8_t data;
+        if(lower_Buffer.dequeue(data) == true)
+          cerr.write(data);
+      }
       digitalWrite(AUX, HIGH);
     }
-    if(cerr.available())
+    else if(lower_Buffer.available())
     {
-      digitalWrite(AUX, LOW);
-      unsigned long start = millis();
-      tx_Buffer.recvFromSWSerial(cerr);
-      delay(5 - (millis() - start));
-      tx_Buffer.writeToSerial();
-      digitalWrite(AUX, HIGH);
+      if(low_buf_old_buff_size != lower_Buffer.available())
+      {
+        low_buff_timestamp = micros();
+        low_buf_old_buff_size = lower_Buffer.available();
+        low_buff_wait_times = 0;
+      }
+      else
+      {
+        if(micros() - low_buff_timestamp >= BYTE_TIME_115200)
+        {
+          low_buff_timestamp = micros();
+          low_buff_wait_times++;
+          if(low_buff_wait_times == MAX_WAIT_TIMES)
+          {
+            digitalWrite(AUX, LOW);
+            while(lower_Buffer.available())
+            {
+              uint8_t data;
+              if(lower_Buffer.dequeue(data) == true)
+                cerr.write(data);
+            }
+            digitalWrite(AUX, HIGH); 
+          }
+        }
+      }
+    }
+
+    if(upper_Buffer.available())
+    {
+      if(up_buf_old_buff_size != upper_Buffer.available())
+      {
+        up_buff_timestamp = micros();
+        up_buf_old_buff_size = upper_Buffer.available();
+        up_buff_wait_times = 0;
+      }
+      else
+      {
+        if(micros() - up_buff_timestamp >= BYTE_TIME_9600)
+        {
+          up_buff_timestamp = micros();
+          up_buff_wait_times++;
+          if(up_buff_wait_times == MAX_WAIT_TIMES)
+          {
+            digitalWrite(AUX, LOW);
+            while(upper_Buffer.available())
+            {
+              uint8_t data;
+              if(upper_Buffer.dequeue(data) == true)
+                Serial.write(data);
+            }
+            digitalWrite(AUX, HIGH); 
+          }
+        }
+      }
     }
     break;
 
@@ -88,7 +151,6 @@ void handeWithFSM()
   case SLEEP:
     if (Serial.available())
     {
-      delayMicroseconds(TICK_MS_9600 * 2); // delay 2 ticks
       digitalWrite(AUX, LOW);
       uint8_t params[CONF_SIZE];
       Serial.readBytes(params, CONF_SIZE);

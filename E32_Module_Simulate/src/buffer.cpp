@@ -1,42 +1,42 @@
 #include "buffer.h"
 
-Buffer::Buffer(const uint16_t size)
+
+Buffer::Buffer(const int capacity)
 {
-    this->maxSize = size;
-    this->buffer = new uint8_t[size];
+    this->pData = new uint8_t[capacity];
+    this->cap = capacity;
     this->size = 0;
+    this->first = 0;
+    this->last = -1;
 }
 
-void Buffer::recvFromSerial()
+bool Buffer::enqueue(uint8_t _data)
 {
-    while (Serial.available())
+    if (this->size < this->cap)
     {
-        this->buffer[size] = Serial.read();
-        this->size = (this->size + 1)%this->maxSize;
+        last = (last + 1) % this->cap;
+        pData[last] = _data;
+        this->size++;
+        return true;
     }
+    return false;
 }
 
-void Buffer::writeToSWSerial(SoftwareSerial& swSerial)
+bool Buffer::dequeue(uint8_t &data)
 {
-    if(this->size == 0) return;
-    swSerial.write(this->buffer, this->size);      
-    memset(this->buffer, 0, this->size);
-    this->size = 0;
-}
-
-void Buffer::recvFromSWSerial(SoftwareSerial& swSerial)
-{
-    while (swSerial.available())
+    if (this->size > 0)
     {
-        this->buffer[size] = swSerial.read();
-        this->size = (this->size + 1)%this->maxSize;
+        data = pData[first];
+        first = (first + 1) % cap;
+        this->size--;
+        return true;
     }
+    return false;
 }
 
-void Buffer::writeToSerial()
+bool Buffer::lastElement(uint8_t &data)
 {
-    if(this->size == 0) return;
-    Serial.write(this->buffer, this->size);      
-    memset(this->buffer, 0, this->size);
-    this->size = 0;
+    if(this->size == 0) return false;
+    data = this->pData[last];
+    return true;
 }

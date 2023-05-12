@@ -7,22 +7,20 @@
 #include "WProgram.h"
 #endif
 
-#include <SoftwareSerial.h>
-
 class Buffer
 {
 private:
-    uint16_t size;
-    uint16_t maxSize;
-    uint8_t *buffer;
+    uint8_t *pData;
+    int first, last;
+    size_t cap;
+    size_t size;
 
 public:
-    Buffer(uint16_t size = 512);
-    uint16_t available() { return this->size; }
-    void recvFromSerial();
-    void writeToSWSerial(SoftwareSerial& swSerial);
-    void recvFromSWSerial(SoftwareSerial& swSerial);
-    void writeToSerial();
+    Buffer(const int capacity = 128);
+    bool enqueue(uint8_t _data);
+    bool dequeue(uint8_t &data);
+    bool lastElement(uint8_t &data);
+    size_t available() { return this->size; }
 };
 
 #endif
