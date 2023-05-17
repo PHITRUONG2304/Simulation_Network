@@ -14,8 +14,7 @@ def createNodes(cordinates, address, channel, serialID):
             address[i],
             channel[i],
             serialID[i],
-            glovalVar.buffers[i],
-            glovalVar.sharedBuffer,
+            glovalVar.buffers[i]
         )
         for i in range(conf.NUM_NODES)
     ]
@@ -52,7 +51,7 @@ def main():
                 (source, packet) = glovalVar.sharedBuffer.getBuffer()
                 nodeSource = getNode(source, nodes)
                 (dest, chan, payload) = descapsulatePacket(packet)
-                print(payload.hex())
+                glovalVar.logging.debug(str(source) + " --> " + str(dest) + " payload: " + str(payload.hex()))
                 if isBroadcastAddress(dest):
                     for node in nodes:
                         if nodeSource.canCommunicate(node, chan):

@@ -6,17 +6,16 @@ import math
 import time
 
 MAXRANGE = 2500
-
+TIME_ON_AIR_SIMULATION = 30
 
 class Node:
-    def __init__(self, cordinates, address, channel, serialID, buff, sharedBuff):
+    def __init__(self, cordinates, address, channel, serialID, buff):
         self.cordinates = cordinates
         self.buffer = buff
-        self.sharedBuffer = sharedBuff
         self.address = address
         self.channel = channel
         self.mSerial = Serial(serialID, baudrate=conf.COMM_BAUDRATE, bytesize=8, parity="N", stopbits=1)
-        
+        # Create 2 thread to handle Serial event
         self.receiver = threading.Thread(target=self.run)
         self.transmitter = threading.Thread(target=self.readRxSerial)
         # Start 2 thread
@@ -47,15 +46,15 @@ class Node:
     def readRxSerial(self):
         while not self.mSerial.is_open:
             pass
-        self.mSerial.read(self.mSerial.in_waiting)
+        self.mSerial.read_all()
         while self.mSerial.is_open:
             if self.mSerial.in_waiting:
                 data = self.mSerial.read_all()
-                # Wait until the buffer is accessible
-                while not self.sharedBuffer.canAccess():
+               
+                while not globalVar.sharedBuffer.canAccess():
                     pass
                 # Write data array into buffer
-                self.sharedBuffer.writeBuffer((self.address, data))
+                globalVar.sharedBuffer.writeBuffer((self.address, data))
             if globalVar.eventBreak.is_set():
                 break
             time.sleep(0.001)
@@ -67,6 +66,7 @@ class Node:
                 while not self.buffer.canAccess():
                     pass
                 data = self.buffer.getBuffer()
+                # print("dest:", self.address, ", payload:", data.hex())
                 self.mSerial.write(data)
             if globalVar.eventBreak.is_set():
                 break
