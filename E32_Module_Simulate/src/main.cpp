@@ -6,10 +6,10 @@
 #include "SWSerial.h"
 #include "SoftwareSerial.h"
 
-#define MAX_READ_SIZE       58
-#define BYTE_TIME_115200    69.44     //us 
-#define BYTE_TIME_9600      833.33    //us
-#define MAX_WAIT_TIMES      3
+#define MAX_READ_SIZE 58
+#define BYTE_TIME_115200 69.44 // us
+#define BYTE_TIME_9600 833.33  // us
+#define MAX_WAIT_TIMES 3
 
 SWSerial swSerial = SWSerial(10, 11); // RXD = 10 and TXD = 11
 
@@ -21,15 +21,15 @@ enum STATUS_E32
   SLEEP
 };
 
-Buffer lower_Buffer = Buffer(512);
-Buffer upper_Buffer = Buffer(512);
 volatile uint32_t currentBaudrate = CONF_BAUD;
 volatile STATUS_E32 currentState;
 
+Buffer lower_Buffer = Buffer(128);
 unsigned long low_buff_timestamp = 0;
 uint8_t low_buff_wait_times = 0;
 size_t low_buf_old_buff_size = 0;
 
+Buffer upper_Buffer = Buffer(128);
 unsigned long up_buff_timestamp = 0;
 uint8_t up_buff_wait_times = 0;
 size_t up_buf_old_buff_size = 0;
@@ -45,10 +45,10 @@ void setup()
   // put your setup code here, to run once:
   pinDirInit();
   outputInit();
-  Serial.begin(CONF_BAUD);
+  Serial.begin(STM_TO_ATMEGA_BAUD);
   swSerial.begin(ATMEGA_TO_LAP_BAUD);
-  // attachInterrupt(digitalPinToInterrupt(M0), changeStateModule, CHANGE);
-  // attachInterrupt(digitalPinToInterrupt(M1), changeStateModule, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(M0), changeStateModule, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(M1), changeStateModule, CHANGE);
   delay(5);
   currentState = NORMAL;
   digitalWrite(AUX, HIGH);
@@ -70,20 +70,9 @@ void handeWithFSM()
     if (swSerial.available())
       upper_Buffer.enqueue(swSerial.readSerial());
 
-    /*if(lower_Buffer.available() == MAX_READ_SIZE)
+    if (lower_Buffer.available())
     {
-      digitalWrite(AUX, LOW);
-      for(uint8_t i = 0; i < MAX_READ_SIZE; i++)
-      {
-        uint8_t data;
-        if(lower_Buffer.dequeue(data) == true)
-          swSerial.write(data);
-      }
-      digitalWrite(AUX, HIGH);
-    }
-    else */if(lower_Buffer.available())
-    {
-      if(low_buf_old_buff_size != lower_Buffer.available())
+      if (low_buf_old_buff_size != lower_Buffer.available())
       {
         low_buff_timestamp = micros();
         low_buf_old_buff_size = lower_Buffer.available();
@@ -91,30 +80,28 @@ void handeWithFSM()
       }
       else
       {
-        if(micros() - low_buff_timestamp >= BYTE_TIME_115200)
+        if (micros() - low_buff_timestamp >= BYTE_TIME_115200)
         {
           low_buff_timestamp = micros();
           low_buff_wait_times++;
-          if(low_buff_wait_times == MAX_WAIT_TIMES)
+          if (low_buff_wait_times == MAX_WAIT_TIMES)
           {
             digitalWrite(AUX, LOW);
-            if(lower_Buffer.available())
-            {
-              size_t size = 0;
-              uint8_t *data = lower_Buffer.deallqueue(size);
-              for(size_t i = 0; i < size; i++)
-                swSerial.writeSerial(*(data+i));
-              delete[] data;
-            }
-            digitalWrite(AUX, HIGH); 
+            const size_t size = lower_Buffer.available();
+            uint8_t data[size];
+            for (size_t i = 0; i < size; i++)
+              lower_Buffer.dequeue(*(data + i));
+            for (size_t i = 0; i < size; i++)
+              swSerial.writeSerial(*(data + i));
+            digitalWrite(AUX, HIGH);
           }
         }
       }
     }
 
-    if(upper_Buffer.available())
+    if (upper_Buffer.available())
     {
-      if(up_buf_old_buff_size != upper_Buffer.available())
+      if (up_buf_old_buff_size != upper_Buffer.available())
       {
         up_buff_timestamp = micros();
         up_buf_old_buff_size = upper_Buffer.available();
@@ -122,26 +109,27 @@ void handeWithFSM()
       }
       else
       {
-        if(micros() - up_buff_timestamp >= BYTE_TIME_9600)
+        if (micros() - up_buff_timestamp >= BYTE_TIME_9600)
         {
           up_buff_timestamp = micros();
           up_buff_wait_times++;
-          if(up_buff_wait_times == MAX_WAIT_TIMES)
+          if (up_buff_wait_times == MAX_WAIT_TIMES)
           {
             digitalWrite(AUX, LOW);
-            if(upper_Buffer.available())
-            {
-              size_t size = 0;
-              uint8_t *data = upper_Buffer.deallqueue(size);
-              for(size_t i = 0; i < size; i++)
-                Serial.write(*(data + i));
-              delete[] data;
-            }
-            digitalWrite(AUX, HIGH); 
+            const size_t size = upper_Buffer.available();
+            uint8_t data[size];
+            for (size_t i = 0; i < size; i++)
+              upper_Buffer.dequeue(*(data + i));
+            cli();
+            for (size_t i = 0; i < size; i++)
+              Serial.write(*(data + i));
+            sei();
+            digitalWrite(AUX, HIGH);
           }
         }
       }
     }
+
     break;
 
   case WAKE_UP:
@@ -201,22 +189,22 @@ void changeStateModule()
 
 ISR(PCINT0_vect)
 {
-    // TODO
-    swSerial.enableInterruptToRead();
+  // TODO
+  swSerial.enableInterruptToRead();
 }
 
 ISR(TIMER1_COMPA_vect) // For write Serial
 {
-    // TODO
-    swSerial.handleWhenWrite();
-    // Critical, NOT CHANGE
-    OCR1A = (OCR1A + 1666) % UINT16_MAX;
+  // TODO
+  swSerial.handleWhenWrite();
+  // Critical, NOT CHANGE
+  OCR1A = (OCR1A + 1666) % UINT16_MAX;
 }
 
 ISR(TIMER1_COMPB_vect)
 {
-    // TOOD
-    swSerial.handleWhenRead();
-    // Critical, NOT CHANGE
-    OCR1B = (OCR1B + 1666) % UINT16_MAX;
+  // TOOD
+  swSerial.handleWhenRead();
+  // Critical, NOT CHANGE
+  OCR1B = (OCR1B + 1666) % UINT16_MAX;
 }
