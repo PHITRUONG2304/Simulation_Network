@@ -14,12 +14,13 @@ private:
     int first, last;
     size_t cap;
     size_t size;
-
+    volatile bool locked = false;
 public:
-    Buffer(const int capacity = 128);
-    bool enqueue(uint8_t _data);
-    bool dequeue(uint8_t &data);
-    bool lastElement(uint8_t &data);
+    Buffer(const int capacity = 1024);
+    ~Buffer() { delete[] pData; }
+    bool enqueue(volatile uint8_t _data);
+    bool dequeue(volatile uint8_t &data);
+    uint8_t *deallqueue(size_t &_size);
     size_t available() { return this->size; }
 };
 

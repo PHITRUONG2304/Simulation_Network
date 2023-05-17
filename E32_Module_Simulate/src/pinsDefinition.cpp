@@ -11,8 +11,8 @@ void pinDirInit()
 
 void outputInit()
 {
-    digitalWrite(M0, LOW);
-    digitalWrite(M1, LOW);
+    digitalWrite(M0, HIGH);
+    digitalWrite(M1, HIGH);
     digitalWrite(UPLINK_LED, LOW);
     digitalWrite(ERR_LED, LOW);
     digitalWrite(AUX, LOW);
