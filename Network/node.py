@@ -1,26 +1,41 @@
 import threading
 from serial import Serial
+from buffer import Buffer
+from statics import StatisticalModule
 import configurations as conf
 import globalData as globalVar
 import math
 import time
+import os
 
 MAXRANGE = 2500
 TIME_ON_AIR_SIMULATION = 30
 
+
+
 class Node:
-    def __init__(self, cordinates, address, channel, serialID, buff):
+    def __init__(self, cordinates, address, channel, serialID):
         self.cordinates = cordinates
-        self.buffer = buff
+        self.buffer = Buffer()
         self.address = address
         self.channel = channel
         self.mSerial = Serial(serialID, baudrate=conf.COMM_BAUDRATE, bytesize=8, parity="N", stopbits=1)
+        
+        #For statics
+        if not os.path.exists("log_"+str(address)+".txt"):
+            open("log_0x0"+str(hex(address)).replace("x", "")+".txt", 'w').close()
+        self.staticsModule = StatisticalModule("log_0x0"+str(hex(address)).replace("x", "")+".txt", address, channel)
+        
         # Create 2 thread to handle Serial event
         self.receiver = threading.Thread(target=self.run)
         self.transmitter = threading.Thread(target=self.readRxSerial)
         # Start 2 thread
         self.receiver.start()
         self.transmitter.start()
+        
+    def printInfo(self):
+        self.staticsModule.printInfo()
+        pass
 
     def isSelf(self, node):
         return self.address == node.address
@@ -55,6 +70,7 @@ class Node:
                     pass
                 # Write data array into buffer
                 globalVar.sharedBuffer.writeBuffer((self.address, data))
+                self.staticsModule.updateStatisticalLoRaData(data[3:], True) #Update when send
             if globalVar.eventBreak.is_set():
                 break
             time.sleep(0.001)
@@ -66,8 +82,9 @@ class Node:
                 while not self.buffer.canAccess():
                     pass
                 data = self.buffer.getBuffer()
-                # print("dest:", self.address, ", payload:", data.hex())
                 self.mSerial.write(data)
+                # For statics
+                self.staticsModule.updateStatisticalLoRaData(data, False) #Update when receive
             if globalVar.eventBreak.is_set():
                 break
             time.sleep(0.001)

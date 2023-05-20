@@ -13,8 +13,7 @@ def createNodes(cordinates, address, channel, serialID):
             cordinates[i],
             address[i],
             channel[i],
-            serialID[i],
-            glovalVar.buffers[i]
+            serialID[i]
         )
         for i in range(conf.NUM_NODES)
     ]
@@ -48,18 +47,22 @@ def main():
             if glovalVar.sharedBuffer.available():
                 while not glovalVar.sharedBuffer.canAccess():
                     pass
+                
                 (source, packet) = glovalVar.sharedBuffer.getBuffer()
                 nodeSource = getNode(source, nodes)
-                (dest, chan, payload) = descapsulatePacket(packet)
-                glovalVar.logging.debug(str(source) + " --> " + str(dest) + " payload: " + str(payload.hex()))
+                (dest, chan, msg) = descapsulatePacket(packet)
+                
+                glovalVar.log_trace_communicate.debug(str(source) + " --> " + str(dest) + " payload: " + str(msg.hex()))
+                
                 if isBroadcastAddress(dest):
                     for node in nodes:
                         if nodeSource.canCommunicate(node, chan):
-                            node.pushDataIntoQueue(payload)
+                            node.pushDataIntoQueue(msg)
                 else:
                     nodeDest = getNode(dest, nodes)
                     if nodeSource.canCommunicate(nodeDest, chan):
-                        nodeDest.pushDataIntoQueue(payload)
+                        nodeDest.pushDataIntoQueue(msg)
+                        
             time.sleep(0.001)
         except KeyboardInterrupt or NameError:
             glovalVar.eventBreak.set()

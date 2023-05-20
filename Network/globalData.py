@@ -5,20 +5,18 @@ import time
 import logging
 
 
-buffers = [Buffer() for i in range(conf.NUM_NODES)]  # buffer of each mesh node
 sharedBuffer = Buffer()  # buffer is shared between the mesh nodes
 eventBreak = threading.Event()
 
-# config log file
-logging.basicConfig(filename="log.txt", filemode="w", level=logging.DEBUG, format="%(asctime)s %(message)s")
-
-def _sleep(ms):
-    _start = time.time_ns()
-    while ((time.time_ns()) - _start) < ms:
-        pass
-
-def logFile(str):
-    logging.debug(str)
+def setup_logger(name, fileName, level = logging.DEBUG, format="%(asctime)s %(message)s"):
+    handler = logging.FileHandler(filename=fileName, mode="w")
+    handler.setFormatter(logging.Formatter(format))
     
-def getCurrentTime():
-    return time.time_ns()
+    logger = logging.getLogger(name=name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+    return logger
+
+# config log file
+# log_1 = logging.basicConfig(filename="log.txt", filemode="w", level=logging.DEBUG, format=)
+log_trace_communicate = setup_logger("trace communication", "communicate.txt")

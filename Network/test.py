@@ -1,20 +1,38 @@
 import time
-import globalData as globalVar
 import serial
+import logging
+import threading
 
-# b_array = bytearray([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07])
-mSerial = serial.Serial(port="COM7",baudrate=9600)
+# def formatBytes(raw):
+#     try:
+#         result = 0
+#         for i in range(len(raw)):
+#             result |= raw[i] << (8*i);
+#         return result
+#     except:
+#         return raw
+
+
+# mSerial = serial.Serial("COM4",baudrate=9600)
+# logging.basicConfig(filename="log.txt", filemode="w", level=logging.DEBUG, format=None)
+
+def printHello():
+    while True:
+        print("Hello world")
+        time.sleep(5)
+        
+def printHello1():
+    while True:
+        print("Hello bro")
+        time.sleep(2)
 
 def main():
+    threading.Thread(target=printHello, daemon=True).start()
+    threading.Thread(target=printHello1, daemon=True).start()
     while True:
         try:
-            # if mSerial.in_waiting:
-            #     globalVar.logging.debug("Receive: " + str(mSerial.read_all()))
-            # for _byte in b_array:
-                # mSerial.write(_byte)
-                # mSerial.write(bytes(_byte))
-                # print(_byte)
-                pass
+            
+            pass
         except KeyboardInterrupt:
             break
 
