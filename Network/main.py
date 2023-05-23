@@ -59,7 +59,10 @@ def main():
                         if nodeSource.canCommunicate(node, chan):
                             node.pushDataIntoQueue(msg)
                 else:
-                    nodeDest = getNode(dest, nodes)
+                    try:
+                        nodeDest = getNode(dest, nodes)
+                    except:
+                        continue
                     if nodeSource.canCommunicate(nodeDest, chan):
                         nodeDest.pushDataIntoQueue(msg)
                         
