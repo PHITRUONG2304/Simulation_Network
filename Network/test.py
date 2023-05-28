@@ -3,38 +3,20 @@ import serial
 import logging
 import threading
 
-# def formatBytes(raw):
-#     try:
-#         result = 0
-#         for i in range(len(raw)):
-#             result |= raw[i] << (8*i);
-#         return result
-#     except:
-#         return raw
+HEADER_SIZE = 4*2 + 4 + 1
 
-
-# mSerial = serial.Serial("COM4",baudrate=9600)
-# logging.basicConfig(filename="log.txt", filemode="w", level=logging.DEBUG, format=None)
-
-def printHello():
-    while True:
-        print("Hello world")
-        time.sleep(5)
-        
-def printHello1():
-    while True:
-        print("Hello bro")
-        time.sleep(2)
+def isValidMessage(msg):
+    if(len(msg) <= HEADER_SIZE): return False
+    sum = 0
+    for i in range(len(msg)):
+        sum += msg[i]
+    if(sum%256 != 0):
+        return False
+    return True
 
 def main():
-    threading.Thread(target=printHello, daemon=True).start()
-    threading.Thread(target=printHello1, daemon=True).start()
-    while True:
-        try:
-            
-            pass
-        except KeyboardInterrupt:
-            break
+    msg = bytes([0x0b,0x00,0x17,0x00,0xff,0xff,0x17,0x00,0x10,0x00,0x00,0x00,0x92,0x22,0x05,0x00])
+    print(isValidMessage(msg))
 
 if __name__ == "__main__":
     main()

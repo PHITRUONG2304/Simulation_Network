@@ -10,8 +10,16 @@ import os
 
 MAXRANGE = 2500
 TIME_ON_AIR_SIMULATION = 30
+HEADER_SIZE = 4*2 + 4 + 1
 
-
+def isValidMessage(msg):
+    if(len(msg) <= HEADER_SIZE): return False
+    sum = 0
+    for i in range(len(msg)):
+        sum += msg[i]
+    if(sum%256 != 0):
+        return False
+    return True
 
 class Node:
     def __init__(self, cordinates, address, channel, serialID):
@@ -69,6 +77,9 @@ class Node:
                 while not globalVar.sharedBuffer.canAccess():
                     pass
                 # Write data array into buffer
+                if isValidMessage(data[3:]): 
+                    print(data.hex)
+                    continue
                 globalVar.sharedBuffer.writeBuffer((self.address, data))
                 self.staticsModule.updateStatisticalLoRaData(data[3:], True) #Update when send
             if globalVar.eventBreak.is_set():
@@ -82,6 +93,7 @@ class Node:
                 while not self.buffer.canAccess():
                     pass
                 data = self.buffer.getBuffer()
+                if isValidMessage(data): continue
                 self.mSerial.write(data)
                 # For statics
                 self.staticsModule.updateStatisticalLoRaData(data, False) #Update when receive
