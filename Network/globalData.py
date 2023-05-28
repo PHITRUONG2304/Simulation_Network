@@ -17,6 +17,4 @@ def setup_logger(name, fileName, level = logging.DEBUG, format="%(asctime)s %(me
     logger.addHandler(handler)
     return logger
 
-# config log file
-# log_1 = logging.basicConfig(filename="log.txt", filemode="w", level=logging.DEBUG, format=)
 log_trace_communicate = setup_logger("trace communication", "communicate.txt")

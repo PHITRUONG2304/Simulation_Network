@@ -6,10 +6,9 @@ from tabulate import tabulate
 SEND = True
 RECEIVE = False
 
-def whattime_s(_start):
+def whattime_minute(_start):
     elapsedTime = time.time() - _start
-    _start = time.time()
-    return elapsedTime
+    return elapsedTime/60.0
 
 def formatBytes(raw):
     try:
@@ -26,12 +25,10 @@ def formatAdress(raw):
 class StatisticalModule:
     def __init__(self, nameLogFile, id, channel, network = 0):
         self.address = (id, channel, network)
-        self.numGeneratedPacket = 0
+        self.numMyPacket = 0
         self.numReceived = 0
-        self.incommingRate = 0
         self.previousTime_1 = time.time()
         self.numSent = 0
-        self.outgoingRate = 0
         self.previousTime_2 = time.time()
         self.neighbors = []
         self.logFile = globalVar.setup_logger(name=nameLogFile.replace(".txt", ""), fileName=nameLogFile, format=None)
@@ -43,9 +40,9 @@ class StatisticalModule:
     def printInfo(self):
         while True:
             self.logFile.info("My address (id, chann, network) is: " + str(self.address))
-            self.logFile.info("The number of successfully generated and sent packets is: " + str(self.numGeneratedPacket))
-            self.logFile.info("The incomming rate is (packets/minute): " + str(self.incommingRate))
-            self.logFile.info("The outgoing rate is (packets/minute): " + str(self.outgoingRate))
+            self.logFile.info("The number of my packet successfully sent is: " + str(self.numMyPacket))
+            self.logFile.info("The incomming rate is (packets/minute): " + str(self.numReceived / whattime_minute(self.previousTime_1)))
+            self.logFile.info("The outgoing rate is (packets/minute): " + str(self.numSent/whattime_minute(self.previousTime_2)))
             if len(self.neighbors) > 0:
                 header = self.neighbors[0].keys()
                 
@@ -102,7 +99,6 @@ class StatisticalModule:
                     neighbor["avrLatency"]  = (neighbor["avrLatency"] * (neighbor["numReceived"] - 1)  + latency) / neighbor["numReceived"]
             
             self.numReceived += 1
-            self.incommingRate += (whattime_s(self.previousTime_2) - self.incommingRate)/self.numReceived
             pass
         elif msgType == 0x29: # RECEIVED_SUCCESS
             if not self.isAlreadyExistNeighbor(source):
@@ -127,10 +123,9 @@ class StatisticalModule:
         msgType = payload[0]
         if msgType == 0x27: # DATA_PACKET
             self.numSent += 1
-            self.outgoingRate += (whattime_s(self.previousTime_1) - self.outgoingRate )/self.numSent
             originalNode = formatAdress(payload[1:5])
             if self.isSelf(originalNode):
-                self.numGeneratedPacket += 1
+                self.numMyPacket += 1
                 
             if not self.isAlreadyExistNeighbor(dest):
                 self.addNewNeighbor(dest)
