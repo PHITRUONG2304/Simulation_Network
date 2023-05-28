@@ -77,8 +77,8 @@ class Node:
                 while not globalVar.sharedBuffer.canAccess():
                     pass
                 # Write data array into buffer
-                if isValidMessage(data[3:]): 
-                    print(data.hex)
+                if not isValidMessage(data[3:]): 
+                    print(data.hex()) 
                     continue
                 globalVar.sharedBuffer.writeBuffer((self.address, data))
                 self.staticsModule.updateStatisticalLoRaData(data[3:], True) #Update when send
@@ -93,7 +93,9 @@ class Node:
                 while not self.buffer.canAccess():
                     pass
                 data = self.buffer.getBuffer()
-                if isValidMessage(data): continue
+                if not isValidMessage(data): 
+                    print(data.hex())
+                    continue
                 self.mSerial.write(data)
                 # For statics
                 self.staticsModule.updateStatisticalLoRaData(data, False) #Update when receive
