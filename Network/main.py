@@ -47,10 +47,12 @@ def main():
             if glovalVar.sharedBuffer.available():
                 while not glovalVar.sharedBuffer.canAccess():
                     pass
-                
-                (source, packet) = glovalVar.sharedBuffer.getBuffer()
-                nodeSource = getNode(source, nodes)
-                (dest, chan, msg) = descapsulatePacket(packet)
+                try:
+                    (source, packet) = glovalVar.sharedBuffer.getBuffer()
+                    nodeSource = getNode(source, nodes)
+                    (dest, chan, msg) = descapsulatePacket(packet)
+                except:
+                    continue
                 
                 glovalVar.log_trace_communicate.debug(str(source) + " --> " + str(dest) + " payload: " + str(msg.hex()))
                 
