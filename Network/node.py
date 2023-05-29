@@ -1,5 +1,5 @@
 import threading
-from serial import Serial
+import serial
 from buffer import Buffer
 from statics import StatisticalModule
 import configurations as conf
@@ -27,7 +27,7 @@ class Node:
         self.buffer = Buffer()
         self.address = address
         self.channel = channel
-        self.mSerial = Serial(serialID, baudrate=conf.COMM_BAUDRATE, bytesize=8, parity="N", stopbits=1)
+        self.mSerial = serial.Serial(serialID, baudrate=conf.COMM_BAUDRATE, bytesize=8, parity="N", stopbits=1)
         
         #For statics
         if not os.path.exists("log_"+str(address)+".txt"):
@@ -70,21 +70,26 @@ class Node:
         while not self.mSerial.is_open:
             pass
         self.mSerial.read_all()
-        while self.mSerial.is_open:
-            if self.mSerial.in_waiting:
-                data = self.mSerial.read_all()
-               
-                while not globalVar.sharedBuffer.canAccess():
-                    pass
-                # Write data array into buffer
-                if not isValidMessage(data[3:]): 
-                    print(data.hex()) 
-                    continue
-                globalVar.sharedBuffer.writeBuffer((self.address, data))
-                self.staticsModule.updateStatisticalLoRaData(data[3:], True) #Update when send
-            if globalVar.eventBreak.is_set():
-                break
-            time.sleep(0.001)
+        while True:
+            try:
+                if not self.mSerial.is_open:
+                    self.mSerial.open()
+                if self.mSerial.in_waiting:
+                    data = self.mSerial.read_all()
+                
+                    while not globalVar.sharedBuffer.canAccess():
+                        pass
+                    # Write data array into buffer
+                    if not isValidMessage(data[3:]): 
+                        print(data.hex()) 
+                        continue
+                    globalVar.sharedBuffer.writeBuffer((self.address, data))
+                    self.staticsModule.updateStatisticalLoRaData(data[3:], True) #Update when send
+                if globalVar.eventBreak.is_set():
+                    break
+                time.sleep(0.001)
+            except serial.serialutil.SerialException:
+                self.mSerial.close()
         pass
 
     def run(self):
@@ -96,6 +101,11 @@ class Node:
                 if not isValidMessage(data): 
                     print(data.hex())
                     continue
+                
+                while not self.mSerial.is_open:
+                    self.mSerial.close()
+                    self.mSerial.open()
+
                 self.mSerial.write(data)
                 # For statics
                 self.staticsModule.updateStatisticalLoRaData(data, False) #Update when receive
