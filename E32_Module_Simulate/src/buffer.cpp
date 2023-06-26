@@ -9,23 +9,21 @@ Buffer::Buffer(const int capacity)
     this->last = -1;
 }
 
-bool Buffer::enqueue(volatile uint8_t _data)
+bool Buffer::enqueue(uint8_t _data)
 {
     if (this->size < this->cap)
     {
-        locked = true;
         last = (last + 1) % this->cap;
         pData[last] = _data;
         this->size += 1;
-        locked = false;
         return true;
     }
     return false;
 }
 
-bool Buffer::dequeue(volatile uint8_t &data)
+bool Buffer::dequeue(uint8_t &data)
 {
-    if (this->size > 0 && locked == false)
+    if (this->size > 0)
     {
         data = pData[first];
         first = (first + 1) % this->cap;

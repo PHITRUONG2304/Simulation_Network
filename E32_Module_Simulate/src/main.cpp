@@ -7,9 +7,9 @@
 #include "SoftwareSerial.h"
 
 #define MAX_READ_SIZE 58
-#define BYTE_TIME_115200 69.44 // us
-#define BYTE_TIME_9600 833.33  // us
-#define MAX_WAIT_TIMES 3
+#define BYTE_TIME_115200 70 // us
+#define BYTE_TIME_9600 833  // us
+#define MAX_WAIT_TIMES 1
 
 SWSerial swSerial = SWSerial(10, 11); // RXD = 10 and TXD = 11
 
@@ -24,12 +24,12 @@ enum STATUS_E32
 volatile uint32_t currentBaudrate = CONF_BAUD;
 volatile STATUS_E32 currentState;
 
-Buffer lower_Buffer = Buffer(128);
+Buffer lower_Buffer = Buffer(BUFF_SIZE);
 unsigned long low_buff_timestamp = 0;
 uint8_t low_buff_wait_times = 0;
 size_t low_buf_old_buff_size = 0;
 
-Buffer upper_Buffer = Buffer(128);
+Buffer upper_Buffer = Buffer(BUFF_SIZE);
 unsigned long up_buff_timestamp = 0;
 uint8_t up_buff_wait_times = 0;
 size_t up_buf_old_buff_size = 0;
@@ -50,7 +50,7 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(M0), changeStateModule, CHANGE);
   attachInterrupt(digitalPinToInterrupt(M1), changeStateModule, CHANGE);
   delay(5);
-  currentState = NORMAL;
+  currentState = SLEEP;
   digitalWrite(AUX, HIGH);
 }
 
@@ -65,10 +65,10 @@ void handeWithFSM()
   switch (currentState)
   {
   case NORMAL:
-    if (Serial.available())
+    while(Serial.available())
       lower_Buffer.enqueue(Serial.read());
-    if (swSerial.available())
-      upper_Buffer.enqueue(swSerial.readSerial());
+    while(swSerial.available())
+      upper_Buffer.enqueue(swSerial.read());
 
     if (lower_Buffer.available())
     {
@@ -91,8 +91,8 @@ void handeWithFSM()
             uint8_t data[size];
             for (size_t i = 0; i < size; i++)
               lower_Buffer.dequeue(*(data + i));
-            for (size_t i = 0; i < size; i++)
-              swSerial.writeSerial(*(data + i));
+
+            swSerial.write(data, size);
             digitalWrite(AUX, HIGH);
           }
         }
@@ -120,10 +120,8 @@ void handeWithFSM()
             uint8_t data[size];
             for (size_t i = 0; i < size; i++)
               upper_Buffer.dequeue(*(data + i));
-            cli();
             for (size_t i = 0; i < size; i++)
               Serial.write(*(data + i));
-            sei();
             digitalWrite(AUX, HIGH);
           }
         }
@@ -203,7 +201,7 @@ ISR(TIMER1_COMPA_vect) // For write Serial
 
 ISR(TIMER1_COMPB_vect)
 {
-  // TOOD
+  // TODO
   swSerial.handleWhenRead();
   // Critical, NOT CHANGE
   OCR1B = (OCR1B + 1666) % UINT16_MAX;

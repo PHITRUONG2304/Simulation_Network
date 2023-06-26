@@ -3,21 +3,28 @@
 
 SWSerial::SWSerial(uint8_t receivePin, uint8_t transmitPin)
 {
-    this->r_buffer = Buffer(128);
-    this->w_buffer = Buffer(128);
+    // For write - TX
+    this->_write_buffer_head = 0;
+    this->_write_buffer_tail = 0;
+    this->_write_buffer_size = 0;
+    // For receive - RX
+    this->_receive_buffer_head = 0;
+    this->_receive_buffer_tail = 0;
+    // Setup state machine
     this->w_state = IDLE;
     this->r_state = IDLE;
+
     this->setRX(receivePin);
     this->setTX(transmitPin);
 }
 
-void SWSerial::setTX(int8_t tx)
+void SWSerial::setTX(uint8_t tx)
 {
     digitalWrite(tx, HIGH);
     pinMode(tx, OUTPUT);
 }
 
-void SWSerial::setRX(int8_t rx)
+void SWSerial::setRX(uint8_t rx)
 {
     pinMode(rx, INPUT);
     digitalWrite(rx, HIGH); // pullup for normal logic!
@@ -39,7 +46,7 @@ void SWSerial::initTimer()
 
     // Interrupt disable
     TIMSK1 = 0;
-    SET_BIT1(TIMSK1);
+    SET_BIT1(TIMSK1); // enable TIMER1_COMPA_vect
 
     // reset timer
     TCNT1 = 0;
@@ -59,65 +66,82 @@ void SWSerial::initPCInterrupt()
 
 void SWSerial::enableInterruptToRead()
 {
-    setStatePCInterrupt(false);
     this->r_state = STARTBIT;
-    SET_BIT2(TIMSK1); // enable TIMER1_COMPB_vect
+    setInterruptToRead(true);
     OCR1B = (TCNT1 + 833) % UINT16_MAX;
 }
-void SWSerial::disableInterruptToRead()
+
+bool SWSerial::write(uint8_t _data[], size_t _size)
 {
-    CLEAR_BIT2(TIMSK1); // disable TIMER1_COMPB_vect
-    setStatePCInterrupt(true);
+    uint8_t next = (this->_write_buffer_tail + 1) % SS_WRITE_BUFFER_SIZE;
+    if(next == this->_write_buffer_head) return false;
+
+    this->_write_buffer[_write_buffer_tail].data = new uint8_t[_size];
+    memcpy(this->_write_buffer[_write_buffer_tail].data, _data, _size);
+    this->_write_buffer[_write_buffer_tail].size = _size;
+    this->_write_buffer_tail = next;
+    return true;
 }
 
-bool SWSerial::writeSerial(uint8_t _data)
+int SWSerial::read()
 {
-    return this->w_buffer.enqueue(_data);
-}
-
-int SWSerial::readSerial()
-{
-    if (this->r_buffer.available())
-    {
-        uint8_t dataReturn;
-        this->r_buffer.dequeue(dataReturn);
-        return dataReturn;
-    }
-    return -1;
-}
-
-void SWSerial::setStatePCInterrupt(bool state)
-{
-    state ? SET_BIT2(PCMSK0) : CLEAR_BIT2(PCMSK0);
-}
-
-void SWSerial::D_Write(uint8_t state)
-{
-    state ? SET_BIT3(PORTB) : CLEAR_BIT3(PORTB);
+    if (this->_receive_buffer_head == this->_receive_buffer_tail) return -1;
+    
+    uint8_t dataReturn = this->_receive_buffer[_receive_buffer_head];
+    this->_receive_buffer_head = (_receive_buffer_head + 1) % SS_RECEIVE_BUFFER_SIZE;
+    return dataReturn;
 }
 
 void SWSerial::handleWhenWrite()
 {
+    static uint8_t frame = 0;
+    static uint8_t count = 0;
+    static uint8_t idle_count = 0;
     switch (this->w_state)
     {
+    case IDLE:
+        if(idle_count < IDLE_BITS) idle_count += 1;
+        else 
+        {
+            if(this->_write_buffer_head != this->_write_buffer_tail)
+            {           
+                this->w_state = STARTBIT;
+                frame = this->_write_buffer[_write_buffer_head].data[0];
+                this->_write_buffer_size = 1;
+            }
+        }
+        break;
     case STARTBIT:
         D_Write(LOW);
         this->w_state = INBIT;
-        this->w_count = 0;
+        count = 0;
         break;
     case INBIT:
-        D_Write(this->w_frame & 1);
-        this->w_frame >>= 1;
-        this->w_count += 1;
-        if (this->w_count == 8)
+        D_Write(frame & 0x01);
+        frame >>= 1;
+        count += 1;
+        if (count == 8)
             this->w_state = ENDBIT;
         break;
     case ENDBIT:
         D_Write(HIGH);
-        this->w_state = this->w_buffer.dequeue(this->w_frame) ? STARTBIT : IDLE;
-        break;
-    case IDLE:
-        this->w_state = this->w_buffer.dequeue(this->w_frame) ? STARTBIT : this->w_state;
+        if(this->_write_buffer_size < this->_write_buffer[_write_buffer_head].size)
+        {
+            this->w_state = STARTBIT;
+            frame = this->_write_buffer[_write_buffer_head].data[this->_write_buffer_size];
+            this->_write_buffer_size += 1;
+        }
+        else
+        {
+            this->w_state = IDLE;
+            idle_count = 0;
+            if(this->_write_buffer[_write_buffer_head].data != nullptr)
+            {
+                delete[] this->_write_buffer[_write_buffer_head].data;
+                this->_write_buffer[_write_buffer_head].data = nullptr;
+            }
+            this->_write_buffer_head = (this->_write_buffer_head + 1) % SS_WRITE_BUFFER_SIZE;
+        }
         break;
     default:
         break;
@@ -126,26 +150,50 @@ void SWSerial::handleWhenWrite()
 
 void SWSerial::handleWhenRead()
 {
+    static uint8_t frame = 0;
+    static uint8_t count = 0;
     switch (this->r_state)
     {
     case STARTBIT:
+        setStatePCInterrupt(false);
         this->r_state = INBIT;
-        this->r_count = 0;
+        frame = 0;
+        count = 0;
         break;
     case INBIT:
-        this->r_frame >>= 1;
+        frame >>= 1;
         if (BIT2_IS_SET(PINB))
-            this->r_frame |= 0x80;
-        this->r_count += 1;
-        if (this->r_count == 8)
+            frame |= 0x80;
+        count += 1;
+        if (count == 8)
             this->r_state = ENDBIT;
         break;
     case ENDBIT:
-        this->r_buffer.enqueue(this->r_frame);
-        disableInterruptToRead();
+        if(((this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE) != this->_receive_buffer_head)
+        {
+            this->_receive_buffer[this->_receive_buffer_tail] = frame;
+            this->_receive_buffer_tail = (this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE;
+        }
+        setStatePCInterrupt(true);
+        setInterruptToRead(false);
         this->r_state = IDLE;
         break;
     default:
         break;
     }
+}
+
+void SWSerial::setStatePCInterrupt(bool _state)
+{
+    (_state == true) ? SET_BIT2(PCMSK0) : CLEAR_BIT2(PCMSK0);
+}
+
+void SWSerial::setInterruptToRead(bool _state)
+{
+    (_state == true) ? SET_BIT2(TIMSK1) : CLEAR_BIT2(TIMSK1);
+}
+
+void SWSerial::D_Write(uint8_t _state)
+{
+    (_state != 0) ? SET_BIT3(PORTB) : CLEAR_BIT3(PORTB);
 }
