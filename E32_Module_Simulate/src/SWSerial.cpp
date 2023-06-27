@@ -1,6 +1,9 @@
 #include "SWSerial.h"
 #include "BitOperations.h"
 
+
+SWSerial* SWSerial::activeObj = nullptr;
+
 SWSerial::SWSerial(uint8_t receivePin, uint8_t transmitPin)
 {
     // For write - TX
@@ -34,6 +37,8 @@ void SWSerial::begin(uint16_t baudrate)
 {
     initTimer();
     initPCInterrupt();
+    if(SWSerial::activeObj == nullptr)
+        SWSerial::activeObj = this;
 }
 
 void SWSerial::initTimer()
@@ -60,7 +65,7 @@ void SWSerial::initPCInterrupt()
     SET_BIT0(PCICR);
     // Enable pin change mask
     PCMSK0 = 0;
-    SET_BIT2(PCMSK0);
+    setStatePCInterrupt(true);
     sei();
 }
 
@@ -183,6 +188,24 @@ void SWSerial::handleWhenRead()
     }
 }
 
+inline void SWSerial::handleInterruptForWrite()
+{
+    if(activeObj)
+        activeObj->handleWhenWrite();
+}
+
+inline void SWSerial::handleInterruptForRead()
+{
+    if(activeObj)
+        activeObj->handleWhenRead();
+}
+
+inline void SWSerial::startRead()
+{
+    if(activeObj)
+        activeObj->enableInterruptToRead();
+}
+
 void SWSerial::setStatePCInterrupt(bool _state)
 {
     (_state == true) ? SET_BIT2(PCMSK0) : CLEAR_BIT2(PCMSK0);
@@ -196,4 +219,27 @@ void SWSerial::setInterruptToRead(bool _state)
 void SWSerial::D_Write(uint8_t _state)
 {
     (_state != 0) ? SET_BIT3(PORTB) : CLEAR_BIT3(PORTB);
+}
+
+// Interrupt handlers
+ISR(TIMER1_COMPA_vect) // For write Serial
+{
+  // TODO
+  SWSerial::handleInterruptForWrite();
+  // Critical, NOT CHANGE
+  OCR1A = (OCR1A + 1666) % UINT16_MAX;
+}
+
+ISR(TIMER1_COMPB_vect)
+{
+  // TODO
+  SWSerial::handleInterruptForRead();
+  // Critical, NOT CHANGE
+  OCR1B = (OCR1B + 1666) % UINT16_MAX;
+}
+
+ISR(PCINT0_vect)
+{
+  // TODO
+  SWSerial::startRead();
 }

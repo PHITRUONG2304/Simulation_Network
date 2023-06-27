@@ -4,14 +4,13 @@
 #include "E32_Module.h"
 #include "buffer.h"
 #include "SWSerial.h"
-#include "SoftwareSerial.h"
 
 #define MAX_READ_SIZE 58
 #define BYTE_TIME_115200 70 // us
 #define BYTE_TIME_9600 833  // us
-#define MAX_WAIT_TIMES 1
+#define MAX_WAIT_TIMES 3
 
-SWSerial swSerial = SWSerial(10, 11); // RXD = 10 and TXD = 11
+SWSerial swSerial = SWSerial(RX_SW, TX_SW); // RXD = 10 and TXD = 11
 
 enum STATUS_E32
 {
@@ -62,11 +61,14 @@ void loop()
 
 void handeWithFSM()
 {
+  digitalWrite(UPLINK_LED, 1);
   switch (currentState)
   {
   case NORMAL:
+    
     while(Serial.available())
       lower_Buffer.enqueue(Serial.read());
+      
     while(swSerial.available())
       upper_Buffer.enqueue(swSerial.read());
 
@@ -183,26 +185,4 @@ void changeStateModule()
   }
   restartSerialAtBaudrate(STM_TO_ATMEGA_BAUD);
   delay(1);
-}
-
-ISR(PCINT0_vect)
-{
-  // TODO
-  swSerial.enableInterruptToRead();
-}
-
-ISR(TIMER1_COMPA_vect) // For write Serial
-{
-  // TODO
-  swSerial.handleWhenWrite();
-  // Critical, NOT CHANGE
-  OCR1A = (OCR1A + 1666) % UINT16_MAX;
-}
-
-ISR(TIMER1_COMPB_vect)
-{
-  // TODO
-  swSerial.handleWhenRead();
-  // Critical, NOT CHANGE
-  OCR1B = (OCR1B + 1666) % UINT16_MAX;
 }
