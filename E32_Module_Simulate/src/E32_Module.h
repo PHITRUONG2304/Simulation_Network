@@ -2,7 +2,7 @@
 #define _E32_MODULE_H_
 
 #if defined(ARDUINO) && ARDUINO >= 100
-#include "arduino.h"
+#include <Arduino.h>
 #else
 #include "WProgram.h"
 #endif

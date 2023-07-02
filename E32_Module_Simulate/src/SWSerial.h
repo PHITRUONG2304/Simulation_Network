@@ -1,6 +1,15 @@
-#include "Arduino.h"
+#ifndef __SW_SERIAL_H__
+#define __SW_SERIAL_H__
+
+#if defined(ARDUINO) && ARDUINO >= 100
+#include <Arduino.h>
+#else
+#include "WProgram.h"
+#endif
+
 #include "Buffer.h"
 #include "SoftwareSerial.h"
+#include "BitOperations.h"
 
 #define SS_RECEIVE_BUFFER_SIZE  128
 #define SS_WRITE_BUFFER_SIZE    16
@@ -45,10 +54,6 @@ private:
     void initTimer();
     void initPCInterrupt();
 
-    inline void D_Write(uint8_t _state);
-    inline void setStatePCInterrupt(bool _state);
-    inline void setInterruptToRead(bool _state);
-
     inline void handleWhenWrite();
     inline void handleWhenRead();
     inline void enableInterruptToRead();
@@ -60,7 +65,24 @@ public:
     int read();
     int available() { return ((uint16_t)(_receive_buffer_tail + SS_RECEIVE_BUFFER_SIZE - _receive_buffer_head)) % SS_RECEIVE_BUFFER_SIZE; }
     
-    static inline void handleInterruptForWrite();
-    static inline void handleInterruptForRead();
-    static inline void startRead();
+    static inline void handleInterruptForWrite() __attribute__((__always_inline__));
+    static inline void handleInterruptForRead() __attribute__((__always_inline__));
+    static inline void startRead() __attribute__((__always_inline__));
 };
+
+inline void setStatePCInterrupt(bool _state)
+{
+    (_state == true) ? SET_BIT2(PCMSK0) : CLEAR_BIT2(PCMSK0);
+}
+
+inline void setInterruptToRead(bool _state)
+{
+    (_state == true) ? SET_BIT2(TIMSK1) : CLEAR_BIT2(TIMSK1);
+}
+
+inline void D_Write(uint8_t _state)
+{
+    (_state != 0) ? SET_BIT3(PORTB) : CLEAR_BIT3(PORTB);
+}
+
+#endif

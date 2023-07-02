@@ -1,7 +1,11 @@
 #ifndef _PINSDEFINITION_H_
 #define _PINSDEFINITION_H_
 
+#if defined(ARDUINO) && ARDUINO >= 100
 #include <Arduino.h>
+#else
+#include "WProgram.h"
+#endif
 
 /*-------------INPUT------------*/
 #define M0                      4   // PD4

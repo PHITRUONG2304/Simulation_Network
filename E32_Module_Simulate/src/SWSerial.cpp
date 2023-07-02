@@ -1,5 +1,4 @@
 #include "SWSerial.h"
-#include "BitOperations.h"
 
 
 SWSerial* SWSerial::activeObj = nullptr;
@@ -78,13 +77,13 @@ void SWSerial::enableInterruptToRead()
 
 bool SWSerial::write(uint8_t _data[], size_t _size)
 {
-    uint8_t next = (this->_write_buffer_tail + 1) % SS_WRITE_BUFFER_SIZE;
-    if(next == this->_write_buffer_head) return false;
+    uint8_t next = (_write_buffer_tail + 1) % SS_WRITE_BUFFER_SIZE;
+    if(next == _write_buffer_head) return false;
 
     this->_write_buffer[_write_buffer_tail].data = new uint8_t[_size];
     memcpy(this->_write_buffer[_write_buffer_tail].data, _data, _size);
     this->_write_buffer[_write_buffer_tail].size = _size;
-    this->_write_buffer_tail = next;
+    _write_buffer_tail = next;
     return true;
 }
 
@@ -175,13 +174,13 @@ void SWSerial::handleWhenRead()
             this->r_state = ENDBIT;
         break;
     case ENDBIT:
-        if(((this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE) != this->_receive_buffer_head)
+        if(((_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE) != this->_receive_buffer_head)
         {
-            this->_receive_buffer[this->_receive_buffer_tail] = _receive_frame;
-            this->_receive_buffer_tail = (this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE;
+            this->_receive_buffer[_receive_buffer_tail] = _receive_frame;
+            _receive_buffer_tail = (_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE;
         }
-        setStatePCInterrupt(true);
         setInterruptToRead(false);
+        setStatePCInterrupt(true);
         this->r_state = IDLE;
         break;
     default:
@@ -205,21 +204,6 @@ inline void SWSerial::startRead()
 {
     if(activeObj)
         activeObj->enableInterruptToRead();
-}
-
-void SWSerial::setStatePCInterrupt(bool _state)
-{
-    (_state == true) ? SET_BIT2(PCMSK0) : CLEAR_BIT2(PCMSK0);
-}
-
-void SWSerial::setInterruptToRead(bool _state)
-{
-    (_state == true) ? SET_BIT2(TIMSK1) : CLEAR_BIT2(TIMSK1);
-}
-
-void SWSerial::D_Write(uint8_t _state)
-{
-    (_state != 0) ? SET_BIT3(PORTB) : CLEAR_BIT3(PORTB);
 }
 
 // Interrupt handlers
