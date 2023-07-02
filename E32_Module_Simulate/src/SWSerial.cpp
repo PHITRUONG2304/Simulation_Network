@@ -99,9 +99,10 @@ int SWSerial::read()
 
 void SWSerial::handleWhenWrite()
 {
-    static uint8_t frame = 0;
-    static uint8_t count = 0;
+    static uint8_t _write_frame = 0;
+    static uint8_t _write_count = 0;
     static uint8_t idle_count = 0;
+
     switch (this->w_state)
     {
     case IDLE:
@@ -111,7 +112,7 @@ void SWSerial::handleWhenWrite()
             if(this->_write_buffer_head != this->_write_buffer_tail)
             {           
                 this->w_state = STARTBIT;
-                frame = this->_write_buffer[_write_buffer_head].data[0];
+                _write_frame = this->_write_buffer[_write_buffer_head].data[0];
                 this->_write_buffer_size = 1;
             }
         }
@@ -119,13 +120,13 @@ void SWSerial::handleWhenWrite()
     case STARTBIT:
         D_Write(LOW);
         this->w_state = INBIT;
-        count = 0;
+        _write_count = 0;
         break;
     case INBIT:
-        D_Write(frame & 0x01);
-        frame >>= 1;
-        count += 1;
-        if (count == 8)
+        D_Write(_write_frame & 0x01);
+        _write_frame >>= 1;
+        _write_count += 1;
+        if (_write_count == 8)
             this->w_state = ENDBIT;
         break;
     case ENDBIT:
@@ -133,7 +134,7 @@ void SWSerial::handleWhenWrite()
         if(this->_write_buffer_size < this->_write_buffer[_write_buffer_head].size)
         {
             this->w_state = STARTBIT;
-            frame = this->_write_buffer[_write_buffer_head].data[this->_write_buffer_size];
+            _write_frame = this->_write_buffer[_write_buffer_head].data[this->_write_buffer_size];
             this->_write_buffer_size += 1;
         }
         else
@@ -155,28 +156,28 @@ void SWSerial::handleWhenWrite()
 
 void SWSerial::handleWhenRead()
 {
-    static uint8_t frame = 0;
-    static uint8_t count = 0;
+    static uint8_t _receive_frame = 0;
+    static uint8_t _receive_count = 0;
     switch (this->r_state)
     {
     case STARTBIT:
         setStatePCInterrupt(false);
         this->r_state = INBIT;
-        frame = 0;
-        count = 0;
+        _receive_frame = 0;
+        _receive_count = 0;
         break;
     case INBIT:
-        frame >>= 1;
+        _receive_frame >>= 1;
         if (BIT2_IS_SET(PINB))
-            frame |= 0x80;
-        count += 1;
-        if (count == 8)
+            _receive_frame |= 0x80;
+        _receive_count += 1;
+        if (_receive_count == 8)
             this->r_state = ENDBIT;
         break;
     case ENDBIT:
         if(((this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE) != this->_receive_buffer_head)
         {
-            this->_receive_buffer[this->_receive_buffer_tail] = frame;
+            this->_receive_buffer[this->_receive_buffer_tail] = _receive_frame;
             this->_receive_buffer_tail = (this->_receive_buffer_tail + 1) % SS_RECEIVE_BUFFER_SIZE;
         }
         setStatePCInterrupt(true);

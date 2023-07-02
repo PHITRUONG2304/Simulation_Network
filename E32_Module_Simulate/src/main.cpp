@@ -61,14 +61,12 @@ void loop()
 
 void handeWithFSM()
 {
-  digitalWrite(UPLINK_LED, 1);
   switch (currentState)
   {
   case NORMAL:
     
     while(Serial.available())
       lower_Buffer.enqueue(Serial.read());
-      
     while(swSerial.available())
       upper_Buffer.enqueue(swSerial.read());
 
